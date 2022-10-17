@@ -33,9 +33,43 @@ solar_cf = [0, 0, 0, 0, 0, 0, 0.20, 0.57, 0.80, 0.93, 0.99, 0.99, 0.85, 0.99, 0.
 # Problem 1
 
 ## Problem 1.1
+The decision variables are the installed capacities of each generator type g, as well as the production from generator type g in period t
+
+Notation:
+
+``` math
+\begin{alignat*}{2}
+& & x_g= \text{installed capapcity of generator type g}\\
+& & x_1 - Geothermal, x_2 - Coal, x_3 - CCGT, x_4 - CT, x_5 - Wind, x_6 - Solar\\
+& & \vec{x} \text{ is a vector of length 6 containing all of the x values}
+\end{alignat*}
+```
+
+```math
+\begin{alignat*}{2}
+t=1:24 \\
+g=1:6\\
+y_{g,t}=\text{production of generator type g at time period t}\\
+Y \text{ is a 6 x 24 matrix containing the production of each generator type g at each time period t, }y_{g,t}
+\end{alignat*}
+```
 
 ## Problem 1.2
-
+```math
+\begin{alignat*}{2}
+& & \text{MinCost}=\text{Investment Cost} + \text{Operating Cost} + \text{Non-served demand penalty} \\
+\end{alignat*}
+```
+``` julia
+investment_cost = [457000, 268000, 85000, 62580, 92000, 92000];
+op_cost = [0, 22, 35, 45, 0, 0]; 
+#note there are only operating costs for coal, CCGT, and CT
+```
+```math
+\begin{alignat*}{2}
+& & \text{MinCost}=investment\_cost*\vec{x} + 20*\sum_{t=1}^{24}y_{2,t} + 35*\sum_{t=1}^{24}y_{3,t} ++ 45*\sum_{t=1}^{24}y_{4,t} +\\
+\end{alignat*}
+```
 ## Problem 1.3
 
 ## Problem 1.4
