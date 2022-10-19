@@ -185,7 +185,7 @@ windHour=gen[5,:];
 solarHour=gen[6,:];
 
 
-plot(CCGTHour, label="CCGT",legend=:topright);
+plot(CCGTHour, label="CCGT",legend=:topright, ylabel="Generated Electricity (MW)", xlabel="Time Period (hours)");
 plot!(CTHOUR, label="CT");
 plot!(windHour, label="Wind");
 plot!(solarHour, label="Solar")
@@ -194,7 +194,7 @@ plot!(solarHour, label="Solar")
 
 
 areaplot(gen', labels=["Geothermal"  "Coal"  "CCGT" "CT" "Wind" "Solar"]);
-scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050))
+scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050),ylabel="Stacked Generated Electricity (MW)", xlabel="Time Period (hours)")
 
 ```
 Wind and solar take up a lot of the installed capacity. During daylight hours, solar generation is by far the largest. This makes sense as solar can only produce when the sun is out. This is reflected in the capacity factors for solar, with values being 0 at night and almost 1 at mid-day. Wind resource is availible at the exact opposite times as shown by the wind capacity factors, and as such, wind energy is produced when solar is not available. These two energy sources are complementary and work well for the objective because of their lower investment cost and negligible operation cost. Additionally, CCGT and CT generation occurs when solar production is lower. CCGT and CT were most likely chosen over coal and geothermal because of their low investment cost in comparison.
@@ -281,7 +281,7 @@ CTHOURCO2=genCO2[4,:];
 windHourCO2=genCO2[5,:];
 solarHourCO2=genCO2[6,:];
 
-plot(geoHourCO2, label="Geothermal", legend=:topright);
+plot(geoHourCO2, label="Geothermal", legend=:topright, ylabel="Generated Electricity (MW)", xlabel="Time Period (hours)");
 plot!(coalHourCO2, label="Coal");
 plot!(CCGTHourCO2, label="CCGT");
 plot!(CTHOURCO2, label="CT");
@@ -292,7 +292,7 @@ plot!(solarHourCO2, label="Solar")
 
 
 areaplot(genCO2', label=["Geothermal" "Coal" "CCGT" "CT" "Wind" "Solar"]);
-scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050))
+scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050), ylabel="Stacked Generated Electricity (MW)", xlabel="Time Period (hours)")
 
 ```
 The carbon dioxide emissions constraint definitly has an effect on the linear program. The main difference compared to the previous formulation is that in this solution, there is a lot more geothermal. This geothermal generation replaces much of the CCGT and CT generation in the previous solution, as geothermal does not produce carbon dioxide while CCGT and CT do. Geothermal generation seems to provide baseline production throughout the day, while wind and solar make up a lot of the remaining demand when each resource is available. CCGT and CT make up the rest of the demand that geothermal, solar, and wind cannot achieve. Again coal is not installed, this time especially because of its high ``CO_2`` emissions rate.
