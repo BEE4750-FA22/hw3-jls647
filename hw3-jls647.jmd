@@ -33,10 +33,9 @@ solar_cf = [0, 0, 0, 0, 0, 0, 0.20, 0.57, 0.80, 0.93, 0.99, 0.99, 0.85, 0.99, 0.
 # Problem 1
 
 ## Problem 1.1
-The decision variables are the installed capacities of each generator type g, as well as the production from generator type g in period t
+The decision variables are the installed capacities of each generator type g, the production from generator type g in period t, and the non-served energy at each time period t.
 
 Notation:
-
 ``` math
 \begin{alignat*}{2}
 & & x_g= \text{installed capapcity of generator type g}\\
@@ -44,45 +43,55 @@ Notation:
 & & \vec{x} \text{ is a vector of length 6 containing all of the x values}
 \end{alignat*}
 ```
-
 ```math
 \begin{alignat*}{2}
-t=1:24 \\
-g=1:6\\
-y_{g,t}=\text{production of generator type g at time period t}\\
+y_{g,t}=\text{production of generator type g at time period t for g=1,...,6 and t=1,...,24} &\\
 Y \text{ is a 6 x 24 matrix containing the production of each generator type g at each time period t, }y_{g,t}
+\end{alignat*}
+```
+```math
+\begin{alignat*}{2}
+nse_{t}=\text{non-served energy at time period t for t=1,...,24} &\\
+\vec{nse} \text{ is a vector of length 24 containing the non-served energy in time period t, } nse_t
 \end{alignat*}
 ```
 
 ## Problem 1.2
 ```math
 \begin{alignat*}{2}
-& & \text{MinCost}=\text{Investment Cost} + \text{Operating Cost} + \text{Non-served demand penalty} 
+\underset{x_g,y_{g,t},nse_t}{\text{min}}
+& & \text{Cost}=\text{Investment Cost} + \text{Operating Cost} + \text{Non-served demand penalty} 
 \end{alignat*}
 ```
-ic is a vector of length 6 containing the cost per installed MW for each generator type g 
-oc is a vector of length 6 containing the cost per MWh for each generator type g
+``\vec{ic}`` is a vector of length 6 containing the cost per installed MW for generator type g 
+
+``\vec{oc}`` is a vector of length 6 containing the cost per MWh for each generator type g
 ``` julia
-investment_cost = [457000, 268000, 85000, 62580, 92000, 92000];
-op_cost = [0, 22, 35, 45, 0, 0]; 
+ic = investment_cost = [457000, 268000, 85000, 62580, 92000, 92000];
+oc = op_cost = [0, 22, 35, 45, 0, 0]; 
 #note there are only operating costs for coal, CCGT, and CT
 ```
 
 ```math
 \begin{alignat*}{2}
-& & \text{MinCost}=\sum_{g=1}^6ic_g*x_g + \sum_{g=1}^6\sum_{t=1}^{24}oc_g*y_{g,t} + 1000\sum_{t=1}^{24}nse_t
+\underset{x_g,y_{g,t},nse_t}{\text{min}}
+& & \text{Cost}=\sum_{g=1}^6ic_g*x_g + 365\sum_{g=1}^6\sum_{t=1}^{24}oc_g*y_{g,t} + 365*1000\sum_{t=1}^{24}nse_t
 \end{alignat*}
 ```
 ## Problem 1.3
 Constraints:
 
-Non-negativity
+Non-negativity, cannot have negative capacity, generation, or non-served energy
 ``` math
 \begin{alignat*}{2}
 & & x_{g} \geq 0 & \text{ for g=1,...,6}\\
-& & y_{g,t} \geq 0 & \text{ for g=1,...,6 and t=1,...,24}
+& & y_{g,t} \geq 0 & \text{ for g=1,...,6 and t=1,...,24}\\
+& & nse_{t} \geq 0 & \text{ for t=1,...,24}
 \end{alignat*}
 ```
+``\\``
+``\\``
+
 Cannot produce more than installed capacity allows
 
 CF is a 6x24 matrix containing the capacity factor for generator type g in time period t, ``cf_{g,t}``
@@ -91,11 +100,14 @@ CF is a 6x24 matrix containing the capacity factor for generator type g in time 
 & & y_{g,t} \leq cf_{g,t}*x_g \text{ for g=1,...,6 and t=1,...,24}
 \end{alignat*}
 ```
+
+``\\``
+``\\``
 Meet demands at each hour including non-served energy
 
-d is a vector of length 24 containing demand values at each time period t
+``\vec{d}`` is a vector of length 24 containing demand values at each time period t
 
-nse is a vector of length 24 containing all of the non-served energy values from each time period t
+``\vec{nse}`` is a vector of length 24 containing all of the non-served energy values from each time period t
 ```math
 \begin{alignat*}{2}
 & & \sum_{g=1}^6y_{g,t} + nse_t = d_t \text{ for t=1,...,24}
@@ -125,6 +137,8 @@ avail[5,:]=wind_cf;
 avail[6,:]=solar_cf;
 
 @constraint(gencap, availability[g in G, t in T], y[g,t]<=avail[g,t]*x[g]);
+
+#non-negativity constraint is applied in the definition of variables
 
 
 ```
@@ -156,7 +170,7 @@ show(results2, allrows=true)
 
 ```
 
-As shown in the dataframes above, in the optimal solution the utility should build 1704.26 MW of CCGT, 881.327 MW of CT, 1238.05 MW of wind, 2728.91 MW of solar, and 0 MW in both geothermal and coal. This will cost approximately ``\$``910 million for installation and operation for 1 year. In this solution, there will be no non-served energy for any hour.
+As shown in the dataframes above, in the optimal solution the utility should build 1704.26 MW of CCGT, 881.327 MW of CT, 1238.05 MW of wind, 2728.91 MW of solar, and 0 MW in both geothermal and coal. This will cost approximately ``\$``910 million for installation and operation for 1 year. In this solution, there will be no non-served energy during any time period.
 ## Problem 1.6
 ```julia
 
@@ -179,22 +193,22 @@ plot!(solarHour, label="Solar")
 
 
 
-areaplot(gen', labels=["Geothermal", "Coal", "CCGT", "CT", "Wind", "Solar"]);
-scatter!(demand, label="Demand (MW)", legend=:topleft)
+areaplot(gen', labels=["Geothermal"  "Coal"  "CCGT" "CT" "Wind" "Solar"]);
+scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050))
 
 ```
-
+Wind and solar take up a lot of the installed capacity. During daylight hours, solar generation is by far the largest. This makes sense as solar can only produce when the sun is out. This is reflected in the capacity factors for solar, with values being 0 at night and almost 1 at mid-day. Wind resource is availible at the exact opposite times as shown by the wind capacity factors, and as such, wind energy is produced when solar is not available. These two energy sources are complementary and work well for the objective because of their lower investment cost and negligible operation cost. Additionally, CCGT and CT generation occurs when solar production is lower. CCGT and CT were most likely chosen over coal and geothermal because of their low investment cost in comparison.
 # Problem 2
 
 ## Problem 2.1
-With this limit, you could still try to minimize cost, therefore the objective function would remain the same. In order to account for the limit, a new constraint could be added to the linear program which puts a max amount of carbon emission. In order to formulate this constraint we need the values of CO2 emissions per MWh for each generator type.
+With this limit, you could still try to minimize cost, therefore the objective function would remain the same. In order to account for the limit, a new constraint could be added to the linear program which puts a max amount of carbon emissions. In order to formulate this constraint we need the values of CO2 emissions per MWh for each generator type.
 
-``CO2_g`` is a vector of length 6 containing the ``CO_2`` emission rate associated with each generator type g
+``CO2_g`` is a vector of length 6 containing the ``CO_2`` emission rate (``\frac{tCO_2}{MWh}``) associated with each generator type g
 
 New Constraint:
 ``` math
 \begin{alignat*}{2}
-& & 365*\sum_{g=1}^6 \sum_{t=1}^{24} y_{g,t}*CO2_g \leq 1.5MtCO_2
+& & 365*\sum_{g=1}^6 \sum_{t=1}^{24} y_{g,t}*CO2_g \leq 1.5*10^6tCO_2
 \end{alignat*}
 ```
 ## Problem 2.2
@@ -277,10 +291,11 @@ plot!(solarHourCO2, label="Solar")
 
 
 
-areaplot(genCO2', labels=["Geothermal", "Coal", "CCGT", "CT", "Wind", "Solar"]);
-scatter!(demand, label="Demand (MW)", legend=:topleft)
+areaplot(genCO2', label=["Geothermal" "Coal" "CCGT" "CT" "Wind" "Solar"]);
+scatter!(demand, label="Demand (MW)", legend=:topleft,ylims=(0,4050))
 
 ```
+The carbon dioxide emissions constraint definitly has an effect on the linear program. The main difference compared to the previous formulation is that in this solution, there is a lot more geothermal. This geothermal generation replaces much of the CCGT and CT generation in the previous solution, as geothermal does not produce carbon dioxide while CCGT and CT do. Geothermal generation seems to provide baseline production throughout the day, while wind and solar make up a lot of the remaining demand when each resource is available. CCGT and CT make up the rest of the demand that geothermal, solar, and wind cannot achieve. Again coal is not installed, this time especially because of its high ``CO_2`` emissions rate.
 ## Problem 2.5
 ```julia
 using JuMP, HiGHS
