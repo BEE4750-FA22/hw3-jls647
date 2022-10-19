@@ -57,37 +57,234 @@ Y \text{ is a 6 x 24 matrix containing the production of each generator type g a
 ## Problem 1.2
 ```math
 \begin{alignat*}{2}
-& & \text{MinCost}=\text{Investment Cost} + \text{Operating Cost} + \text{Non-served demand penalty} \\
+& & \text{MinCost}=\text{Investment Cost} + \text{Operating Cost} + \text{Non-served demand penalty} 
 \end{alignat*}
 ```
+ic is a vector of length 6 containing the cost per installed MW for each generator type g 
+oc is a vector of length 6 containing the cost per MWh for each generator type g
 ``` julia
 investment_cost = [457000, 268000, 85000, 62580, 92000, 92000];
 op_cost = [0, 22, 35, 45, 0, 0]; 
 #note there are only operating costs for coal, CCGT, and CT
 ```
+
 ```math
 \begin{alignat*}{2}
-& & \text{MinCost}=investment\_cost*\vec{x} + 20*\sum_{t=1}^{24}y_{2,t} + 35*\sum_{t=1}^{24}y_{3,t} ++ 45*\sum_{t=1}^{24}y_{4,t} +\\
+& & \text{MinCost}=\sum_{g=1}^6ic_g*x_g + \sum_{g=1}^6\sum_{t=1}^{24}oc_g*y_{g,t} + 1000\sum_{t=1}^{24}nse_t
 \end{alignat*}
 ```
 ## Problem 1.3
+Constraints:
 
+Non-negativity
+``` math
+\begin{alignat*}{2}
+& & x_{g} \geq 0 & \text{ for g=1,...,6}\\
+& & y_{g,t} \geq 0 & \text{ for g=1,...,6 and t=1,...,24}
+\end{alignat*}
+```
+Cannot produce more than installed capacity allows
+
+CF is a 6x24 matrix containing the capacity factor for generator type g in time period t, ``cf_{g,t}``
+``` math
+\begin{alignat*}{2}
+& & y_{g,t} \leq cf_{g,t}*x_g \text{ for g=1,...,6 and t=1,...,24}
+\end{alignat*}
+```
+Meet demands at each hour including non-served energy
+
+d is a vector of length 24 containing demand values at each time period t
+
+nse is a vector of length 24 containing all of the non-served energy values from each time period t
+```math
+\begin{alignat*}{2}
+& & \sum_{g=1}^6y_{g,t} + nse_t = d_t \text{ for t=1,...,24}
+\end{alignat*}
+```
 ## Problem 1.4
+```julia
+using JuMP, HiGHS
 
+gencap=Model(HiGHS.Optimizer)
+generators=["geothermal", "coal", "CCGT", "CT", "wind", "solar"];
+periods=["hour 1","hour 2","hour 3","hour 4","hour 5","hour 6","hour 7","hour 8","hour 9","hour 10","hour 11","hour 12","hour 13","hour 14","hour 15","hour 16","hour 17","hour 18","hour 19","hour 20","hour 21","hour 22","hour 23","hour 24"];
+G=1:length(generators)
+T=1:length(periods)
+@variable(gencap, x[G] >=0);
+@variable(gencap, y[G,T]>=0);
+@variable(gencap, nse[T]>=0);
+@objective(gencap, Min, sum(investment_cost.*x)+365*sum(y*ones(24,1).*op_cost)+sum(nse)*1000*365);
+@constraint(gencap, load[t in T], sum(y[:,t])+nse[t]==demand[t]);
+
+#put all capacity factors in one array
+avail=ones(6,24);
+for i=1:4
+avail[i,:]=avail[i,:].*thermal_cf[i];
+end
+avail[5,:]=wind_cf;
+avail[6,:]=solar_cf;
+
+@constraint(gencap, availability[g in G, t in T], y[g,t]<=avail[g,t]*x[g]);
+
+
+```
 ## Problem 1.5
+```julia
+using DataFrames
+optimize!(gencap)
+objective_value(gencap)
 
+installed=value.(x).data;
+generated=(value.(y).data*ones(24,1))/1000;
+generated=vec(generated);
+
+results=DataFrame(
+"Resource" => generators,
+"Installed (MW)" => installed,
+"Generated (GWh/day)" => generated,
+)
+
+generatedHourly=ones(1,6)*value.(y).data;
+generatedHourly=vec(generatedHourly);
+results2=DataFrame(
+"Time Period" => periods,
+"Generated (MWh/day)" =>generatedHourly,
+"Non-served (MWh/day)" =>value.(nse).data,
+"Demand" => demand
+);
+show(results2, allrows=true)
+
+```
+
+As shown in the dataframes above, in the optimal solution the utility should build 1704.26 MW of CCGT, 881.327 MW of CT, 1238.05 MW of wind, 2728.91 MW of solar, and 0 MW in both geothermal and coal. This will cost approximately ``\$``910 million for installation and operation for 1 year. In this solution, there will be no non-served energy for any hour.
 ## Problem 1.6
+```julia
+
+using Plots
+
+gen=value.(y).data;
+geoHour=gen[1,:];
+coalHour=gen[2,:];
+CCGTHour=gen[3,:];
+CTHOUR=gen[4,:];
+windHour=gen[5,:];
+solarHour=gen[6,:];
+
+
+plot(CCGTHour, label="CCGT",legend=:topright);
+plot!(CTHOUR, label="CT");
+plot!(windHour, label="Wind");
+plot!(solarHour, label="Solar")
+#Note there is no generation from Geothermal and Coal
+
+
+
+areaplot(gen', labels=["Geothermal", "Coal", "CCGT", "CT", "Wind", "Solar"]);
+scatter!(demand, label="Demand (MW)", legend=:topleft)
+
+```
 
 # Problem 2
 
 ## Problem 2.1
+With this limit, you could still try to minimize cost, therefore the objective function would remain the same. In order to account for the limit, a new constraint could be added to the linear program which puts a max amount of carbon emission. In order to formulate this constraint we need the values of CO2 emissions per MWh for each generator type.
 
+``CO2_g`` is a vector of length 6 containing the ``CO_2`` emission rate associated with each generator type g
+
+New Constraint:
+``` math
+\begin{alignat*}{2}
+& & 365*\sum_{g=1}^6 \sum_{t=1}^{24} y_{g,t}*CO2_g \leq 1.5MtCO_2
+\end{alignat*}
+```
 ## Problem 2.2
+```julia
+using JuMP, HiGHS
 
+
+gencapCO2=Model(HiGHS.Optimizer)
+generators=["geothermal", "coal", "CCGT", "CT", "wind", "solar"];
+periods=["hour 1","hour 2","hour 3","hour 4","hour 5","hour 6","hour 7","hour 8","hour 9","hour 10","hour 11","hour 12","hour 13","hour 14","hour 15","hour 16","hour 17","hour 18","hour 19","hour 20","hour 21","hour 22","hour 23","hour24"];
+G=1:length(generators)
+T=1:length(periods)
+@variable(gencapCO2, xCO2[G] >=0);
+@variable(gencapCO2, yCO2[G,T]>=0);
+@variable(gencapCO2, nseCO2[T]>=0);
+@objective(gencapCO2, Min, sum(investment_cost.*xCO2)+365*sum(yCO2*ones(24,1).*op_cost)+sum(nseCO2)*1000*365);
+@constraint(gencapCO2, load[t in T], sum(yCO2[:,t])+nseCO2[t]==demand[t]);
+
+#put all capacity factors in one array
+avail=ones(6,24);
+for i=1:4
+avail[i,:]=avail[i,:].*thermal_cf[i];
+end
+avail[5,:]=wind_cf;
+avail[6,:]=solar_cf;
+
+@constraint(gencapCO2, availability[g in G, t in T], yCO2[g,t]<=avail[g,t]*xCO2[g]);
+
+#new constraint
+@constraint(gencapCO2, CO2,  365*sum(yCO2*ones(24,1).*co2_emissions) <= 1.5*10^6);
+
+
+```
 ## Problem 2.3
+```julia
+using DataFrames
+optimize!(gencapCO2)
+objective_value(gencapCO2)
 
+
+installedCO2=value.(xCO2).data;
+generatedCO2=(value.(yCO2).data*ones(24,1))/1000;
+generatedCO2=vec(generatedCO2);
+resultsCO2=DataFrame(
+"Resource" => generators,
+"Installed (MW)" => installedCO2,
+"Generated (GWh/day)" => generatedCO2,
+)
+
+generatedHourlyCO2=ones(1,6)*value.(yCO2).data;
+generatedHourlyCO2=vec(generatedHourlyCO2);
+results2CO2=DataFrame(
+"Time Period" => periods,
+"Generated (MWh/day)" =>generatedHourlyCO2,
+"Non-served (MWh/day)" =>value.(nseCO2).data,
+"Demand" => demand
+);
+show(results2CO2, allrows=true)
+```
 ## Problem 2.4
+```julia
 
+using Plots
+
+genCO2=value.(yCO2).data;
+geoHourCO2=genCO2[1,:];
+coalHourCO2=genCO2[2,:];
+CCGTHourCO2=genCO2[3,:];
+CTHOURCO2=genCO2[4,:];
+windHourCO2=genCO2[5,:];
+solarHourCO2=genCO2[6,:];
+
+plot(geoHourCO2, label="Geothermal", legend=:topright);
+plot!(coalHourCO2, label="Coal");
+plot!(CCGTHourCO2, label="CCGT");
+plot!(CTHOURCO2, label="CT");
+plot!(windHourCO2, label="Wind");
+plot!(solarHourCO2, label="Solar")
+
+
+
+
+areaplot(genCO2', labels=["Geothermal", "Coal", "CCGT", "CT", "Wind", "Solar"]);
+scatter!(demand, label="Demand (MW)", legend=:topleft)
+
+```
 ## Problem 2.5
-
+```julia
+using JuMP, HiGHS
+shadow_price(CO2)
+```
+The shadow price of CO2 is the marginal cost of increasing ``CO_2`` emissions limit by ``1\:tCO_2/yr``. Therefore the value to the utility of allowing it to emit an additional 1000 ``tCO_2/yr`` is ``\$``130221.
 # References
